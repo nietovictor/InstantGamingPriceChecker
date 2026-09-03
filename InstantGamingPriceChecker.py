@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 PRICE_THRESHOLD_DEFAULT = 10.0
 LOGS_DIR = os.path.join(os.getcwd(), "Logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
+DAYS_SINCE_LAST_MAIL = 5  # Número de días para evitar enviar correos duplicados
 
 # Read URLs and thresholds from games.txt
 URLS_THRESHOLDS = []
@@ -140,7 +141,7 @@ def send_weekly_summary(games_data, log_file):
     if today.weekday() != 6:
         return
 
-    if was_email_sent_recently("Weekly summary email sent successfully", days=5, log_file=log_file):
+    if was_email_sent_recently("Weekly summary email sent successfully", days=DAYS_SINCE_LAST_MAIL, log_file=log_file):
         print_log("Weekly summary already sent this week.", file=log_file)
         return
     
@@ -211,7 +212,7 @@ def send_weekly_summary(games_data, log_file):
     except Exception as e:
         print_log(f"Error sending weekly summary: {e}", type="ERROR", file=log_file)
 
-def was_email_sent_recently(text_to_check, days=2, log_file="log.txt"):
+def was_email_sent_recently(text_to_check, days=DAYS_SINCE_LAST_MAIL, log_file="log.txt"):
     now = datetime.datetime.now()
     try:
         with open(log_file, "r", encoding="utf-8") as f:
@@ -282,7 +283,7 @@ if __name__ == "__main__":
                     send_email_smtp(price, url, product_name)
                     print_log(print_text + f" at {price}€.", file=log_file)
                 else:
-                    print_log(f"Email already sent for {product_name} at {price}€ in the last 2 days.", file=log_file)
+                    print_log(f"Email already sent for {product_name} at {price}€ in the last {DAYS_SINCE_LAST_MAIL} days.", file=log_file)
         elif price is None:
             print_log(f"No price found for the product {product_name}.", file=log_file)
 
