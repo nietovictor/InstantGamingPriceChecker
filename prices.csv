@@ -1,4 +1,4 @@
-checked_at,name,url,threshold,price,status,last_notified_at
+checked_at,name,url,threshold,price,status
 2026-11-02T21:22:57+01:00,Days Gone,https://www.instant-gaming.com/es/6791-comprar-days-gone-pc-juego-steam/,12.0,10.89,✅ Below threshold
 2026-11-02T21:22:57+01:00,Borderlands 4,https://www.instant-gaming.com/es/15381-comprar-borderlands-4-pc-steam/,35.0,49.99,❌ Above threshold
 2026-11-02T21:22:57+01:00,The Last of Us Part I,https://www.instant-gaming.com/es/13298-comprar-the-last-of-us-part-i-pc-juego-steam-europe/,20.0,21.49,❌ Above threshold
