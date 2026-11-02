@@ -7,8 +7,12 @@ dashboard de solo lectura mediante GitHub Pages.
 
 1. `games.txt` contiene una URL y un umbral de precio por juego.
 2. `InstantGamingPriceChecker.py` consulta los precios.
-3. Cada ejecución reemplaza `prices.csv` con el estado actual.
+3. Cada ejecución reemplaza `prices.csv` con el estado actual e incluye
+   `last_notified_at`, la última notificación enviada para cada juego.
 4. El workflow `.github/workflows/price-check.yml` guarda el CSV y despliega el dashboard.
+
+Las alertas de precio se envían como máximo una vez cada 5 días por juego. Los correos
+incluyen un enlace al dashboard de GitHub.
 
 ## GitHub Actions y Pages
 
@@ -48,7 +52,7 @@ Para abrir el dashboard localmente:
 python -m http.server 8000
 ```
 
-Después visita `http://localhost:8000/game_price_tracker_dashboard.html`.
+Después visita `http://localhost:8000/index.html`.
 
 ## Formato de `games.txt`
 

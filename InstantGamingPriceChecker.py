@@ -15,6 +15,7 @@ LOGS_DIR = os.path.join(os.getcwd(), "Logs")
 PRICE_HISTORY_FILE = os.path.join(os.getcwd(), "prices.csv")
 os.makedirs(LOGS_DIR, exist_ok=True)
 DAYS_SINCE_LAST_MAIL = 5  # Número de días para evitar enviar correos duplicados
+GITHUB_DASHBOARD_URL = "https://github.com/nietovictor/InstantGamingPriceChecker"
 
 # Read URLs and thresholds from games.txt
 URLS_THRESHOLDS = []
@@ -124,20 +125,22 @@ def print_log(message, type="INFO", file="log.txt"):
 def send_email_smtp(price, url, title):
     if not all((RECIPIENT, SMTP_USER, SMTP_PASS)):
         print_log("SMTP not configured; email notification skipped.", type="WARNING")
-        return
+        return False
 
-    subject = f"Game Tracker - {title} at {price}€"
+    subject = f"Price Dashboard - {title} at {price}€"
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     html_body = f"""
     <html>
       <body>
-        <h2>Game Tracker Notification</h2>
+        <h2>Price Dashboard - Price Alert</h2>
         <p><strong>Game:</strong> {title}</p>
         <p><strong>Price:</strong> {price}€</p>
         <p><strong>URL:</strong> <a href="{url}">{url}</a></p>
         <p><strong>Date:</strong> {now}</p>
         <hr>
-        <p>This is an automated notification from your price tracker.</p>
+        <p>This price is at or below your configured target.</p>
+        <p><a href="{GITHUB_DASHBOARD_URL}">Open the Price Dashboard</a></p>
+        <p>This is an automated notification from the Price Dashboard.</p>
       </body>
     </html>
     """
@@ -154,6 +157,7 @@ def send_email_smtp(price, url, title):
         server.starttls()
         server.login(SMTP_USER, SMTP_PASS)
         server.sendmail(SMTP_USER, RECIPIENT, msg.as_string())
+    return True
 
 def send_weekly_summary(games_data, log_file):
     """Send weekly price summary every Sunday"""
@@ -177,9 +181,10 @@ def send_weekly_summary(games_data, log_file):
     html_body = f"""
     <html>
       <body>
-        <h2>🎮 Weekly Game Price Summary</h2>
+        <h2>Price Dashboard - Weekly Summary</h2>
         <p><strong>Date:</strong> {today.strftime('%d-%m-%Y')}</p>
         <p><strong>Total Games Tracked:</strong> {len(games_data)}</p>
+        <p><a href="{GITHUB_DASHBOARD_URL}">Open the Price Dashboard</a></p>
         <hr>
         
         <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: auto; table-layout: auto;">
@@ -270,9 +275,32 @@ def extract_product_name(full_title):
     # If no parenthesis, return the first 6 words as fallback
     return " ".join(full_title.split()[:6])
 
+def load_last_notifications():
+    """Read notification timestamps before replacing the current CSV snapshot."""
+    notifications = {}
+    try:
+        with open(PRICE_HISTORY_FILE, "r", newline="", encoding="utf-8") as csv_file:
+            for row in csv.DictReader(csv_file):
+                if row.get("url"):
+                    notifications[row["url"]] = row.get("last_notified_at", "")
+    except FileNotFoundError:
+        pass
+    return notifications
+
+def notification_is_due(last_notified_at, now):
+    if not last_notified_at:
+        return True
+    try:
+        last_sent = datetime.datetime.fromisoformat(last_notified_at)
+    except ValueError:
+        return True
+    if last_sent.tzinfo is None:
+        last_sent = last_sent.replace(tzinfo=datetime.timezone.utc)
+    return now - last_sent >= datetime.timedelta(days=DAYS_SINCE_LAST_MAIL)
+
 def save_price_snapshot(games_data, checked_at):
     """Replace the CSV with the latest result consumed by the dashboard."""
-    fieldnames = ["checked_at", "name", "url", "threshold", "price", "status"]
+    fieldnames = ["checked_at", "name", "url", "threshold", "price", "status", "last_notified_at"]
 
     with open(PRICE_HISTORY_FILE, "w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -285,11 +313,14 @@ def save_price_snapshot(games_data, checked_at):
                 "threshold": game["threshold"],
                 "price": game["price"] if game["price"] != "N/A" else "",
                 "status": game["status"],
+                "last_notified_at": game.get("last_notified_at", ""),
             })
 
 if __name__ == "__main__":
     log_file = os.path.join(LOGS_DIR, "gameLogs.txt")
     checked_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+    checked_at_datetime = datetime.datetime.fromisoformat(checked_at)
+    last_notifications = load_last_notifications()
     
     # Store all game data for weekly summary
     games_data = []
@@ -306,7 +337,8 @@ if __name__ == "__main__":
                 'price': price,
                 'threshold': threshold,
                 'url': url,
-                'status': status
+                'status': status,
+                'last_notified_at': last_notifications.get(url, "")
             })
         else:
             games_data.append({
@@ -314,19 +346,23 @@ if __name__ == "__main__":
                 'price': 'N/A',
                 'threshold': threshold,
                 'url': url,
-                'status': '⚠️ Price not found'
+                'status': '⚠️ Price not found',
+                'last_notified_at': last_notifications.get(url, "")
             })
         
         # Regular price checking logic
         if price is not None and title:
             print_log(f"The game {product_name} has a price of {price}€", file=log_file)
             if price <= threshold:
-                print_text = f"Notification sent: {product_name}"
-                if not was_email_sent_recently(text_to_check=print_text, log_file=log_file):
-                    send_email_smtp(price, url, product_name)
-                    print_log(print_text + f" at {price}€.", file=log_file)
+                last_notified_at = last_notifications.get(url, "")
+                if notification_is_due(last_notified_at, checked_at_datetime):
+                    if send_email_smtp(price, url, product_name):
+                        games_data[-1]["last_notified_at"] = checked_at
+                        print_log(f"Notification sent: {product_name} at {price}€.", file=log_file)
+                    else:
+                        print_log(f"Notification not sent for {product_name}.", type="WARNING", file=log_file)
                 else:
-                    print_log(f"Email already sent for {product_name} at {price}€ in the last {DAYS_SINCE_LAST_MAIL} days.", file=log_file)
+                    print_log(f"Email already sent for {product_name} in the last {DAYS_SINCE_LAST_MAIL} days.", file=log_file)
         elif price is None:
             print_log(f"No price found for the product {product_name}.", file=log_file)
 

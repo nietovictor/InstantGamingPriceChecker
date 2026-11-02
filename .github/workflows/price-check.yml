@@ -45,7 +45,7 @@ jobs:
       - name: Prepare Pages artifact
         run: |
           mkdir site
-          cp game_price_tracker_dashboard.html site/index.html
+          cp index.html site/index.html
           cp prices.csv site/prices.csv
 
       - name: Upload Pages artifact
