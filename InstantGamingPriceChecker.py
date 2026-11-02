@@ -16,6 +16,7 @@ PRICE_HISTORY_FILE = os.path.join(os.getcwd(), "prices.csv")
 os.makedirs(LOGS_DIR, exist_ok=True)
 DAYS_SINCE_LAST_MAIL = 5  # Número de días para evitar enviar correos duplicados
 GITHUB_DASHBOARD_URL = "https://github.com/nietovictor/InstantGamingPriceChecker"
+REQUEST_LANGUAGE = "es-ES,es;q=0.9,en;q=0.8"
 
 # Read URLs and thresholds from games.txt
 URLS_THRESHOLDS = []
@@ -60,7 +61,9 @@ SMTP_PORT = 587
 
 def get_price_and_title(url):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": REQUEST_LANGUAGE,
+        "Referer": "https://www.instant-gaming.com/es/",
     }
     resp = requests.get(url, headers=headers)
     soup = BeautifulSoup(resp.text, "lxml")
@@ -72,7 +75,12 @@ def get_price_and_title(url):
             price_text = price_div.get_text(strip=True)
             price_num = re.findall(r"[\d\.,]+", price_text)
             if price_num:
-                price = float(price_num[0].replace(",", "."))
+                normalized_price = price_num[0]
+                if "," in normalized_price and "." in normalized_price:
+                    normalized_price = normalized_price.replace(".", "").replace(",", ".")
+                else:
+                    normalized_price = normalized_price.replace(",", ".")
+                price = float(normalized_price)
             else:
                 price = None
     except Exception as e:

@@ -17,6 +17,8 @@ concurrency:
 jobs:
   update-prices:
     runs-on: ubuntu-latest
+    env:
+      TZ: Europe/Madrid
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

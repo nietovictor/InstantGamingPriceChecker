@@ -14,6 +14,12 @@ dashboard de solo lectura mediante GitHub Pages.
 Las alertas de precio se envían como máximo una vez cada 5 días por juego. Los correos
 incluyen un enlace al dashboard de GitHub.
 
+Las peticiones usan idioma español (`es-ES`) y zona horaria `Europe/Madrid`. GitHub no
+permite elegir la ubicación física de un runner hospedado, por lo que esto no cambia su
+IP pública ni puede garantizar una geolocalización española. Para forzar una IP española
+es necesario configurar un runner `self-hosted` ubicado en España y cambiar
+`runs-on: ubuntu-latest` por `runs-on: [self-hosted, spain]`.
+
 ## GitHub Actions y Pages
 
 1. Sube el repositorio a GitHub incluyendo `games.txt`, `prices.csv`,
