@@ -2,6 +2,7 @@ import requests
 import re
 import smtplib
 import json
+import csv
 import datetime
 import os
 from email.mime.multipart import MIMEMultipart
@@ -11,6 +12,7 @@ from bs4 import BeautifulSoup
 
 PRICE_THRESHOLD_DEFAULT = 10.0
 LOGS_DIR = os.path.join(os.getcwd(), "Logs")
+PRICE_HISTORY_FILE = os.path.join(os.getcwd(), "prices.csv")
 os.makedirs(LOGS_DIR, exist_ok=True)
 DAYS_SINCE_LAST_MAIL = 5  # Número de días para evitar enviar correos duplicados
 
@@ -26,13 +28,16 @@ with open("games.txt", "r", encoding="utf-8") as f:
             threshold = PRICE_THRESHOLD_DEFAULT  # Usa el global si no hay threshold válido
         URLS_THRESHOLDS.append((url, threshold))
 
-# SMTP configuration
-with open("credentials.json", "r", encoding="utf-8") as f:
-    creds = json.load(f)
-
-RECIPIENT = creds["mail_adress_destination"]
-SMTP_USER = creds["mail_adress_sender"]
-SMTP_PASS = creds["app_password"]
+# SMTP configuration can come from GitHub Actions secrets or the local file.
+RECIPIENT = os.getenv("MAIL_ADDRESS_DESTINATION", "")
+SMTP_USER = os.getenv("MAIL_ADDRESS_SENDER", "")
+SMTP_PASS = os.getenv("SMTP_APP_PASSWORD", "")
+if not all((RECIPIENT, SMTP_USER, SMTP_PASS)) and os.path.exists("credentials.json"):
+    with open("credentials.json", "r", encoding="utf-8") as f:
+        creds = json.load(f)
+    RECIPIENT = creds.get("mail_adress_destination", RECIPIENT)
+    SMTP_USER = creds.get("mail_adress_sender", SMTP_USER)
+    SMTP_PASS = creds.get("app_password", SMTP_PASS)
 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
@@ -104,6 +109,10 @@ def print_log(message, type="INFO", file="log.txt"):
         f.write(log_line + "\n")
 
 def send_email_smtp(price, url, title):
+    if not all((RECIPIENT, SMTP_USER, SMTP_PASS)):
+        print_log("SMTP not configured; email notification skipped.", type="WARNING")
+        return
+
     subject = f"Game Tracker - {title} at {price}€"
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     html_body = f"""
@@ -135,6 +144,9 @@ def send_email_smtp(price, url, title):
 
 def send_weekly_summary(games_data, log_file):
     """Send weekly price summary every Sunday"""
+    if not all((RECIPIENT, SMTP_USER, SMTP_PASS)):
+        print_log("SMTP not configured; weekly summary skipped.", type="WARNING", file=log_file)
+        return
     today = datetime.datetime.now()
     
     # Check if today is Sunday (weekday() returns 6 for Sunday)
@@ -245,8 +257,26 @@ def extract_product_name(full_title):
     # If no parenthesis, return the first 6 words as fallback
     return " ".join(full_title.split()[:6])
 
+def save_price_snapshot(games_data, checked_at):
+    """Replace the CSV with the latest result consumed by the dashboard."""
+    fieldnames = ["checked_at", "name", "url", "threshold", "price", "status"]
+
+    with open(PRICE_HISTORY_FILE, "w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        for game in games_data:
+            writer.writerow({
+                "checked_at": checked_at,
+                "name": game["name"],
+                "url": game["url"],
+                "threshold": game["threshold"],
+                "price": game["price"] if game["price"] != "N/A" else "",
+                "status": game["status"],
+            })
+
 if __name__ == "__main__":
     log_file = os.path.join(LOGS_DIR, "gameLogs.txt")
+    checked_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     
     # Store all game data for weekly summary
     games_data = []
@@ -286,6 +316,9 @@ if __name__ == "__main__":
                     print_log(f"Email already sent for {product_name} at {price}€ in the last {DAYS_SINCE_LAST_MAIL} days.", file=log_file)
         elif price is None:
             print_log(f"No price found for the product {product_name}.", file=log_file)
+
+    save_price_snapshot(games_data, checked_at)
+    print_log(f"Latest price snapshot saved to {PRICE_HISTORY_FILE}.", file=log_file)
 
     # Send weekly summary if it's Sunday (pass the already collected data)
     send_weekly_summary(games_data, log_file)

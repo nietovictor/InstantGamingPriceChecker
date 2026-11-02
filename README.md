@@ -1,118 +1,62 @@
-# InstantGaming Price Tracker and Email Notifier
-This Python script monitors a list of InstantGaming product URLs, checks their prices against custom thresholds, and sends automated HTML email notifications when prices drop below your specified limits. It also sends a weekly summary every Sunday. All activity is logged to a file.
+# Price Dashboard
 
-You can schedule a task so this script is run periodically, this way you will get a notification every time one of your wished games reaches your target price.
+Este proyecto comprueba precios de Instant Gaming con GitHub Actions y publica un
+dashboard de solo lectura mediante GitHub Pages.
 
-## How It Works
+## Funcionamiento
 
-1. **Product URLs and Thresholds:**  
-   The script reads game URLs and price thresholds from a file called `games.txt`. Each game requires two lines: the URL and the maximum price you're willing to pay.
+1. `games.txt` contiene una URL y un umbral de precio por juego.
+2. `InstantGamingPriceChecker.py` consulta los precios.
+3. Cada ejecución reemplaza `prices.csv` con el estado actual.
+4. El workflow `.github/workflows/price-check.yml` guarda el CSV y despliega el dashboard.
 
-2. **Credentials:**  
-   Email credentials and recipient information are stored in a file called `credentials.json`. This file must be present in the same directory as the script.
+## GitHub Actions y Pages
 
-3. **Price Check:**  
-   For each game, the script checks if the current price is at or below your threshold. If so, an email notification is sent (maximum once every 2 days per game to avoid spam).
+1. Sube el repositorio a GitHub incluyendo `games.txt`, `prices.csv`,
+   `InstantGamingPriceChecker.py` y `.github/workflows/price-check.yml`.
+2. En **Settings > Secrets and variables > Actions**, añade estos secretos opcionales
+   si quieres recibir correos:
+   - `MAIL_ADDRESS_DESTINATION`
+   - `MAIL_ADDRESS_SENDER`
+   - `SMTP_APP_PASSWORD`
+3. En **Settings > Pages**, selecciona **GitHub Actions** como fuente.
+4. Ejecuta una vez **Actions > Update prices and publish dashboard > Run workflow**.
+5. El trabajo programado se ejecuta cada día a las 07:00 UTC. La URL de Pages aparece
+   en el despliegue del workflow.
 
-4. **Weekly Summary:**  
-   Every Sunday, the script sends a comprehensive email with all tracked games, their current prices, and status.
+El sitio publicado solo contiene el dashboard y `prices.csv`. La edición de juegos,
+la configuración SMTP y el scraping se ejecutan fuera de GitHub Pages.
 
-5. **Email Notification:**  
-   Emails are sent using Gmail's SMTP server and contain game details, current price, and a clickable link.
+## Uso local
 
-6. **Logging:**  
-   All actions and errors are logged to `Logs/gameLogs.txt`.
+Instala dependencias y ejecuta el comprobador:
 
----
-
-## Setup
-
-### 1. `credentials.json` Format
-
-Create a file named `credentials.json` in the same directory as the script with the following structure:
-
-```json
-{
-    "mail_adress_destination": "recipient@example.com",
-    "mail_adress_sender": "yourgmail@gmail.com",
-    "app_password": "your_gmail_app_password"
-}
+```bash
+pip install requests beautifulsoup4 lxml
+python InstantGamingPriceChecker.py
 ```
 
-- `mail_adress_destination`: The email address where notifications will be sent.
-- `mail_adress_sender`: Your Gmail address (must match the account for the app password).
-- `app_password`: A Gmail App Password (not your regular Gmail password).  
-  [How to generate an App Password](https://support.google.com/accounts/answer/185833?hl=en).
+Para abrir el dashboard localmente:
 
-### 2. `games.txt` Format
-
-Create a file named `games.txt` in the same directory as the script. For each game, add two lines:
-1. The InstantGaming product URL
-2. Your maximum acceptable price (in euros)
-
-Example:
-
+```bash
+python -m http.server 8000
 ```
+
+Después visita `http://localhost:8000/game_price_tracker_dashboard.html`.
+
+## Formato de `games.txt`
+
+Cada juego ocupa dos líneas:
+
+```text
 https://www.instant-gaming.com/es/6791-comprar-days-gone-pc-juego-steam/
 12
-https://www.instant-gaming.com/es/15381-comprar-borderlands-4-pc-steam/
-35
-// This is a comment and will be ignored
-https://www.instant-gaming.com/es/8260-comprar-stray-pc-mac-juego-steam-europe-us-canada/
-10
 ```
 
-- Blank lines and lines starting with `//` are ignored.
-- If a threshold is missing or invalid, the default value (10.0€) is used.
+Las líneas vacías y las que empiezan por `//` se ignoran. Si el umbral no es válido,
+se utiliza el valor predeterminado de 10 euros.
 
----
+## Seguridad
 
-## Usage
-
-1. Install dependencies:
-   ```bash
-   pip install requests beautifulsoup4 lxml
-   ```
-
-2. Run the script:
-   ```bash
-   python InstantGamingPriceChecker.py
-   ```
-
-3. Check your email for:
-   - **Immediate notifications** when a game drops to or below your threshold
-   - **Weekly summary** every Sunday with all tracked games
-
-4. **Automate Daily Checks:**  
-   You can schedule this script to run automatically every day using your operating system's task scheduler:
-   - **Windows:** Use Task Scheduler ([How to schedule a Python script on Windows](https://datatofish.com/python-script-windows-scheduler/))
-   - **Linux/macOS:** Use `cron` jobs ([How to schedule a cron job](https://opensource.com/article/19/7/getting-started-cron))
-
-   This is what I do so I don't have to run it manually.
-
----
-
-## Features
-
-- ✅ **Custom price thresholds** per game
-- ✅ **Email cooldown** (notifications sent max once every 2 days per game)
-- ✅ **Weekly summary** every Sunday with all tracked games
-- ✅ **Detailed logging** in `Logs/gameLogs.txt`
-- ✅ **HTML formatted emails** with clean, professional layout
-- ✅ **Error handling** for missing prices or unavailable products
-
----
-
-## Notas
-
-- El script está configurado para Gmail SMTP. Si utilizas otro proveedor, actualiza la configuración de SMTP en el script.
-- Asegúrate de que tu cuenta de Gmail tenga [habilitados las contraseñas de aplicación](https://support.google.com/accounts/answer/185833?hl=en).
-- Los umbrales de precio se configuran individualmente para cada juego en `games.txt`.
-- El resumen semanal se envía automáticamente todos los domingos.
-- Para evitar spam, las notificaciones de precio bajo se envían como máximo una vez cada 2 días por juego.
-
----
-
-## License
-
-This project is open source and available for personal use.
+No subas `credentials.json` ni contraseñas al repositorio. El archivo está excluido
+por `.gitignore`; para Actions utiliza únicamente GitHub Secrets.
