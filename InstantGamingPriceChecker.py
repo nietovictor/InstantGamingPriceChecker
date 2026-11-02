@@ -28,16 +28,29 @@ with open("games.txt", "r", encoding="utf-8") as f:
             threshold = PRICE_THRESHOLD_DEFAULT  # Usa el global si no hay threshold válido
         URLS_THRESHOLDS.append((url, threshold))
 
-# SMTP configuration can come from GitHub Actions secrets or the local file.
-RECIPIENT = os.getenv("MAIL_ADDRESS_DESTINATION", "")
-SMTP_USER = os.getenv("MAIL_ADDRESS_SENDER", "")
-SMTP_PASS = os.getenv("SMTP_APP_PASSWORD", "")
-if not all((RECIPIENT, SMTP_USER, SMTP_PASS)) and os.path.exists("credentials.json"):
-    with open("credentials.json", "r", encoding="utf-8") as f:
-        creds = json.load(f)
-    RECIPIENT = creds.get("mail_adress_destination", RECIPIENT)
-    SMTP_USER = creds.get("mail_adress_sender", SMTP_USER)
-    SMTP_PASS = creds.get("app_password", SMTP_PASS)
+# SMTP configuration can come from the complete CREDENTIALS_JSON secret or a local file.
+def load_credentials():
+    credentials_json = os.getenv("CREDENTIALS_JSON")
+    if credentials_json:
+        try:
+            credentials = json.loads(credentials_json)
+        except json.JSONDecodeError as error:
+            raise RuntimeError("CREDENTIALS_JSON must contain valid JSON.") from error
+        if not isinstance(credentials, dict):
+            raise RuntimeError("CREDENTIALS_JSON must contain a JSON object.")
+        return credentials
+
+    if os.path.exists("credentials.json"):
+        with open("credentials.json", "r", encoding="utf-8") as credentials_file:
+            return json.load(credentials_file)
+
+    return {}
+
+
+creds = load_credentials()
+RECIPIENT = creds.get("mail_adress_destination", "")
+SMTP_USER = creds.get("mail_adress_sender", "")
+SMTP_PASS = creds.get("app_password", "")
 
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587

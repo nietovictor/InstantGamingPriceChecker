@@ -14,11 +14,17 @@ dashboard de solo lectura mediante GitHub Pages.
 
 1. Sube el repositorio a GitHub incluyendo `games.txt`, `prices.csv`,
    `InstantGamingPriceChecker.py` y `.github/workflows/price-check.yml`.
-2. En **Settings > Secrets and variables > Actions**, añade estos secretos opcionales
-   si quieres recibir correos:
-   - `MAIL_ADDRESS_DESTINATION`
-   - `MAIL_ADDRESS_SENDER`
-   - `SMTP_APP_PASSWORD`
+2. En **Settings > Secrets and variables > Actions**, crea el secreto
+   `CREDENTIALS_JSON` con el contenido completo de tu configuración:
+   ```json
+   {
+     "mail_adress_destination": "tu-correo@gmail.com",
+     "mail_adress_sender": "tu-cuenta@gmail.com",
+     "app_password": "xxxx xxxx xxxx xxxx"
+   }
+   ```
+   El secreto es opcional: sin él se actualizarán los precios, pero no se enviarán
+   notificaciones por correo.
 3. En **Settings > Pages**, selecciona **GitHub Actions** como fuente.
 4. Ejecuta una vez **Actions > Update prices and publish dashboard > Run workflow**.
 5. El trabajo programado se ejecuta cada día a las 07:00 UTC. La URL de Pages aparece
@@ -59,4 +65,4 @@ se utiliza el valor predeterminado de 10 euros.
 ## Seguridad
 
 No subas `credentials.json` ni contraseñas al repositorio. El archivo está excluido
-por `.gitignore`; para Actions utiliza únicamente GitHub Secrets.
+por `.gitignore`; para Actions utiliza únicamente el secreto `CREDENTIALS_JSON`.

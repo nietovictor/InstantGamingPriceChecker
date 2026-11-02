@@ -31,9 +31,7 @@ jobs:
 
       - name: Check prices
         env:
-          MAIL_ADDRESS_DESTINATION: ${{ secrets.MAIL_ADDRESS_DESTINATION }}
-          MAIL_ADDRESS_SENDER: ${{ secrets.MAIL_ADDRESS_SENDER }}
-          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
         run: python InstantGamingPriceChecker.py
 
       - name: Commit current prices
