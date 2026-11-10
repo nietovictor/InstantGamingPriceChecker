@@ -5,6 +5,7 @@ import json
 import csv
 import datetime
 import os
+import subprocess
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
@@ -15,7 +16,7 @@ LOGS_DIR = os.path.join(os.getcwd(), "Logs")
 PRICE_HISTORY_FILE = os.path.join(os.getcwd(), "prices.csv")
 os.makedirs(LOGS_DIR, exist_ok=True)
 DAYS_SINCE_LAST_MAIL = 5  # Número de días para evitar enviar correos duplicados
-GITHUB_DASHBOARD_URL = "https://github.com/nietovictor/InstantGamingPriceChecker"
+GITHUB_DASHBOARD_URL = "https://nietovictor.github.io/InstantGamingPriceChecker/"
 REQUEST_LANGUAGE = "es-ES,es;q=0.9,en;q=0.8"
 
 # Read URLs and thresholds from games.txt
@@ -324,6 +325,93 @@ def save_price_snapshot(games_data, checked_at):
                 "last_notified_at": game.get("last_notified_at", ""),
             })
 
+def price_snapshot_has_changes(games_data):
+    """Return whether any tracked price differs from the published snapshot."""
+    def normalize_price(value):
+        if value in (None, "", "N/A"):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return str(value)
+
+    previous_prices = {}
+    try:
+        with open(PRICE_HISTORY_FILE, "r", newline="", encoding="utf-8") as csv_file:
+            for row in csv.DictReader(csv_file):
+                if row.get("url"):
+                    previous_prices[row["url"]] = normalize_price(row.get("price"))
+    except FileNotFoundError:
+        return True
+
+    current_prices = {
+        game["url"]: normalize_price(game["price"])
+        for game in games_data
+    }
+    return current_prices != previous_prices
+
+def load_last_checked_at():
+    try:
+        with open(PRICE_HISTORY_FILE, "r", newline="", encoding="utf-8") as csv_file:
+            row = next(csv.DictReader(csv_file), None)
+            return row.get("checked_at", "") if row else ""
+    except FileNotFoundError:
+        return ""
+
+def publish_price_snapshot(log_file):
+    """Commit and push the changed snapshot using the local Git configuration."""
+    try:
+        subprocess.run(
+            ["git", "add", "--", "prices.csv"],
+            check=True,
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True,
+        )
+        staged_check = subprocess.run(
+            ["git", "diff", "--cached", "--quiet", "--", "prices.csv"],
+            check=False,
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True,
+        )
+        if staged_check.returncode == 0:
+            latest_commit = subprocess.run(
+                ["git", "log", "-1", "--format=%s"],
+                check=True,
+                cwd=os.getcwd(),
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if latest_commit != "Update current prices":
+                print_log("No changes to prices.csv to publish.", file=log_file)
+                return
+            print_log("No new changes to prices.csv; checking for a pending local commit.", file=log_file)
+        elif staged_check.returncode == 1:
+            subprocess.run(
+                ["git", "commit", "-m", "Update current prices", "--", "prices.csv"],
+                check=True,
+                cwd=os.getcwd(),
+                capture_output=True,
+                text=True,
+            )
+        else:
+            raise RuntimeError(staged_check.stderr.strip() or "Unable to inspect staged changes.")
+
+        subprocess.run(
+            ["git", "push", "--set-upstream", "origin", "HEAD"],
+            check=True,
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True,
+        )
+        print_log("Price snapshot committed and pushed successfully.", file=log_file)
+    except FileNotFoundError as error:
+        raise RuntimeError("Git was not found. Install Git and run the checker inside the repository.") from error
+    except subprocess.CalledProcessError as error:
+        details = error.stderr.strip() or error.stdout.strip() or str(error)
+        raise RuntimeError(f"Unable to publish price changes with Git: {details}") from error
+
 if __name__ == "__main__":
     log_file = os.path.join(LOGS_DIR, "gameLogs.txt")
     checked_at = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -374,8 +462,11 @@ if __name__ == "__main__":
         elif price is None:
             print_log(f"No price found for the product {product_name}.", file=log_file)
 
-    save_price_snapshot(games_data, checked_at)
+    prices_changed = price_snapshot_has_changes(games_data)
+    snapshot_checked_at = checked_at if prices_changed else (load_last_checked_at() or checked_at)
+    save_price_snapshot(games_data, snapshot_checked_at)
     print_log(f"Latest price snapshot saved to {PRICE_HISTORY_FILE}.", file=log_file)
+    publish_price_snapshot(log_file)
 
     # Send weekly summary if it's Sunday (pass the already collected data)
     send_weekly_summary(games_data, log_file)

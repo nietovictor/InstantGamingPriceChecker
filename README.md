@@ -1,6 +1,6 @@
 # Price Dashboard
 
-Este proyecto comprueba precios de Instant Gaming con GitHub Actions y publica un
+Este proyecto comprueba precios de Instant Gaming desde un PC local y publica un
 dashboard de solo lectura mediante GitHub Pages.
 
 ## Funcionamiento
@@ -9,23 +9,29 @@ dashboard de solo lectura mediante GitHub Pages.
 2. `InstantGamingPriceChecker.py` consulta los precios.
 3. Cada ejecución reemplaza `prices.csv` con el estado actual e incluye
    `last_notified_at`, la última notificación enviada para cada juego.
-4. El workflow `.github/workflows/price-check.yml` guarda el CSV y despliega el dashboard.
+4. Si cambia algún precio, el comprobador crea un commit y hace `git push` usando
+   la configuración local de Git. Si no cambia ningún precio, no publica nada.
 
 Las alertas de precio se envían como máximo una vez cada 5 días por juego. Los correos
 incluyen un enlace al dashboard de GitHub.
 
-Las peticiones usan idioma español (`es-ES`) y zona horaria `Europe/Madrid`. GitHub no
-permite elegir la ubicación física de un runner hospedado, por lo que esto no cambia su
-IP pública ni puede garantizar una geolocalización española. Para forzar una IP española
-es necesario configurar un runner `self-hosted` ubicado en España y cambiar
-`runs-on: ubuntu-latest` por `runs-on: [self-hosted, spain]`.
+Las peticiones usan idioma español (`es-ES`) y se ejecutan desde tu conexión local,
+por lo que los precios corresponden a la región de tu PC.
 
-## GitHub Actions y Pages
+## GitHub Pages
 
 1. Sube el repositorio a GitHub incluyendo `games.txt`, `prices.csv`,
-   `InstantGamingPriceChecker.py` y `.github/workflows/price-check.yml`.
-2. En **Settings > Secrets and variables > Actions**, crea el secreto
-   `CREDENTIALS_JSON` con el contenido completo de tu configuración:
+   `InstantGamingPriceChecker.py` e `index.html`.
+2. En **Settings > Pages**, selecciona `Deploy from a branch`, elige `main`
+   y la carpeta `/ (root)`.
+3. Ejecuta el comprobador en tu PC desde la carpeta del repositorio. Necesitas
+   tener configurado el acceso de Git para poder hacer `git push`.
+
+La URL pública del dashboard es:
+`https://nietovictor.github.io/InstantGamingPriceChecker/`
+
+La configuración SMTP se lee desde `credentials.json` o desde la variable
+`CREDENTIALS_JSON`. El contenido esperado es:
    ```json
    {
      "mail_adress_destination": "tu-correo@gmail.com",
@@ -33,15 +39,8 @@ es necesario configurar un runner `self-hosted` ubicado en España y cambiar
      "app_password": "xxxx xxxx xxxx xxxx"
    }
    ```
-   El secreto es opcional: sin él se actualizarán los precios, pero no se enviarán
+   Sin estas credenciales se actualizarán los precios, pero no se enviarán
    notificaciones por correo.
-3. En **Settings > Pages**, selecciona **GitHub Actions** como fuente.
-4. Ejecuta una vez **Actions > Update prices and publish dashboard > Run workflow**.
-5. El trabajo programado se ejecuta cada día a las 07:00 UTC. La URL de Pages aparece
-   en el despliegue del workflow.
-
-El sitio publicado solo contiene el dashboard y `prices.csv`. La edición de juegos,
-la configuración SMTP y el scraping se ejecutan fuera de GitHub Pages.
 
 ## Uso local
 
@@ -75,4 +74,4 @@ se utiliza el valor predeterminado de 10 euros.
 ## Seguridad
 
 No subas `credentials.json` ni contraseñas al repositorio. El archivo está excluido
-por `.gitignore`; para Actions utiliza únicamente el secreto `CREDENTIALS_JSON`.
+por `.gitignore`.
